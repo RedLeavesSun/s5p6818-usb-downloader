@@ -8,3 +8,6 @@ For s5p6818 to boot from USBBOOT.
   
   -h, --help              display this help and exit  
   -v, --version           output version information and exit  
+  -t, --time              timeout for search driver, default timeout is 10 second  
+  -k, --kernel            download kernel, default is u-boot whit nsih header  
+

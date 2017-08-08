@@ -22,7 +22,8 @@ int usb_write(const uint8_t* buff, int size)
 int usb_open(void)
 {
     libusb_device**         list;
-    int ret;
+	ssize_t                 cnt;
+    int                     ret;
 
     ret = libusb_init(&ctx);
     if (ret < 0)
@@ -30,9 +31,9 @@ int usb_open(void)
 
     libusb_set_debug(ctx, LIBUSB_LOG_LEVEL_INFO);
 
-    ret = (int)libusb_get_device_list(ctx, &list);
-    if (ret < 0)
-        return ret;
+    cnt = (int)libusb_get_device_list(ctx, &list);
+    if (cnt < 0)
+        return cnt;
 
     dev_handle = libusb_open_device_with_vid_pid(ctx, S5P6818_VID, S5P6818_PID);
     if (dev_handle == NULL)
@@ -43,6 +44,8 @@ int usb_open(void)
     ret = libusb_claim_interface(dev_handle, S5P6818_INTERFACE);
     if (ret < 0)
         return ret;
+	
+	return 0;
 }
 
 void usb_close(void)

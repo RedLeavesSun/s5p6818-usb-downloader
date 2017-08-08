@@ -1,9 +1,12 @@
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "usbdeal.h"
@@ -13,11 +16,15 @@
 #define FILE_MAX_SIZE       (56 << 10)                                  // 56KB
 
 static int8_t buff[512];
+static int timeout = 10;
+static bool kernel=false;
 
-char *const short_options = "hv";
+char *const short_options = "hvt:k";
 struct option long_options[] = {
     {"help", 0, NULL, 'h'},
     {"version", 0, NULL, 'v'},
+	{"time", 0, NULL, 't'},
+	{"kernel", 0, NULL, 'k'},
     {0, 0, 0, 0}};
 
 void usage(const char* appName)
@@ -28,6 +35,8 @@ void usage(const char* appName)
     printf("\n");
     printf("-h, --help              display this help and exit\n");
     printf("-v, --version           output version information and exit\n");
+	printf("-t, --time              timeout for search driver, default timeout is 10 second\n");
+	printf("-k, --kernel            download kernel, default is u-boot whit nsih header\n");
 }
 
 void version(const char* appName)
@@ -49,10 +58,18 @@ unsigned long getFileSize(const char* filePath)
 int main(int argc, char *argv[])
 {
     int ret;
+	int i;
+	
     while ((ret = getopt_long(argc, argv, short_options, long_options, NULL)) != -1)
     {
         switch (ret)
         {
+		case 't':
+			timeout = atoi(optarg);
+			break;
+		case 'k':
+			kernel = true;
+			break;
         case 'v':
             version(argv[0]);
             return 0;
@@ -76,29 +93,54 @@ int main(int argc, char *argv[])
         return ret;
 
     unsigned long fileSize = getFileSize(filePath);
-    
-    if(fileSize > FILE_MAX_SIZE)
-    {
-        fprintf(stderr, "[Error] Firmware is greater than 56KB.\n");
-        return -1;
-    }
+	
+	if (!kernel)
+	{
+		if(fileSize > FILE_MAX_SIZE)
+		{
+			fprintf(stderr, "[Error] Firmware is greater than 56KB.\n");
+			return -1;
+		}
+		
+		if(fileSize < 0x200)
+		{
+			fprintf(stderr, "[Error] Nish header no correct.\n");
+			return -1;
+		}
 
-    if(fileSize < 0x200)
-    {
-        fprintf(stderr, "[Error] Nish header no correct.\n");
-        return -1;
-    }
-
-    if((numRead = read(fd, buff, 0x200)) != 0x200)
-    {
-        fprintf(stderr, "[Error] Read nish header failed.\n");
-        return -1;
-    }
+		if((numRead = read(fd, buff, 0x200)) != 0x200)
+		{
+			fprintf(stderr, "[Error] Read nish header failed.\n");
+			return -1;
+		}		
+	}
 
     printf("[Info] Start to transfer the firmwave...\n");
-    usb_open();
 
-    *((unsigned int*)(buff + 0x44)) = fileSize - 0x200;                 // Change LOADSIZE
+	for(i = 0; i < timeout * 10; i++)
+	{
+		if(!usb_open())
+		{
+			break;
+		}
+		if(i % 5 == 0)
+		{
+			printf(".");
+			fflush(stdout);
+		}
+		usleep(100000);
+	}
+	printf("\n");
+	if(i == timeout * 10)
+	{
+		fprintf(stderr, "[Error] Can't find the S5P6818 driver.\n");
+		return -1;
+	}
+
+    if(!kernel)
+		*((unsigned int*)(buff + 0x44)) = fileSize - 0x200;                 // Change LOADSIZE
+	else
+		*((unsigned int*)(buff + 0x44)) = fileSize;                         // Change LOADSIZE
 
     if((numWrite = usb_write(buff, 0x200)) != 0x200)
     {
