@@ -22,7 +22,7 @@ int usb_write(const uint8_t* buff, int size)
 int usb_open(void)
 {
     libusb_device**         list;
-	ssize_t                 cnt;
+    ssize_t                 cnt;
     int                     ret;
 
     ret = libusb_init(&ctx);
@@ -44,8 +44,8 @@ int usb_open(void)
     ret = libusb_claim_interface(dev_handle, S5P6818_INTERFACE);
     if (ret < 0)
         return ret;
-	
-	return 0;
+    
+    return 0;
 }
 
 void usb_close(void)
